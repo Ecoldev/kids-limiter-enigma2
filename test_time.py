@@ -1,10 +1,43 @@
+import sys
+import types
 import json
 import os
-import sys
 from datetime import datetime
 
 
-sys.modules['enigma'] = type('enigma', (), {})()
+plugins_module = types.ModuleType("Plugins")
+plugin_submodule = types.ModuleType("Plugin")
+plugin_submodule.PluginDescriptor = object
+plugins_module.Plugin = plugin_submodule
+
+sys.modules['Plugins'] = plugins_module
+sys.modules['Plugins.Plugin'] = plugin_submodule
+
+
+screens_module = types.ModuleType("Screens")
+messagebox_module = types.ModuleType("MessageBox")
+messagebox_module.MessageBox = object
+screens_module.MessageBox = messagebox_module
+
+sys.modules['Screens'] = screens_module
+sys.modules['Screens.MessageBox'] = messagebox_module
+
+components_module = types.ModuleType("Components")
+tracker_module = types.ModuleType("ServiceEventTracker")
+tracker_module.ServiceEventTracker = object
+components_module.ServiceEventTracker = tracker_module
+
+sys.modules['Components'] = components_module
+sys.modules['Components.ServiceEventTracker'] = tracker_module
+
+
+enigma_module = types.ModuleType("enigma")
+enigma_module.eTimer = object
+enigma_module.iPlayableService = object
+enigma_module.eServiceReference = object
+
+sys.modules['enigma'] = enigma_module
+
 
 import plugin
 
