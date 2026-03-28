@@ -139,13 +139,7 @@ Konfiguracja workflow znajduje się w:
 
 ---
 
-## License
-
-MIT
-
----
-
-# KidsLimiter (Enigma2 Plugin)
+# KidsLimiter (Enigma2 Plugin) - English version
 
 KidsLimiter is a parental control plugin for Enigma2 that limits daily viewing time for children's TV channels.
 
@@ -256,6 +250,20 @@ Tests are automatically executed via GitHub Actions on each push and pull reques
 
 * Tests do not cover Enigma2 runtime behavior
 * Runtime behavior must be validated on the device
+
+---
+
+## Community / Społeczność
+
+Projekt stosuje standardowe praktyki open-source.
+Project follows standard open-source practices.
+
+* Zasady współpracy / Contribution guidelines: `CONTRIBUTING.md`
+* Kodeks postępowania / Code of Conduct: `CODE_OF_CONDUCT.md`
+* Polityka bezpieczeństwa / Security policy: `SECURITY.md`
+
+Przed wniesieniem zmian zapoznaj się z tymi dokumentami.
+Please review these documents before contributing.
 
 ---
 
