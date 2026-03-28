@@ -1,3 +1,5 @@
+![CI](https://github.com/Ecoldev/kids-limiter-enigma2/actions/workflows/main.yml/badge.svg)
+
 # KidsLimiter (Enigma2 Plugin)
 
 KidsLimiter to plugin kontroli rodzicielskiej dla Enigma2, który ogranicza dzienny czas oglądania kanałów dziecięcych.
@@ -103,7 +105,32 @@ python3 test_time.py
 
 ### Integracja z CI
 
-Testy są automatycznie uruchamiane przez GitHub Actions przy każdym pushu oraz pull requeście.
+Projekt wykorzystuje GitHub Actions do automatycznej walidacji kodu.
+
+Pipeline uruchamia się przy każdym:
+
+* pushu do repozytorium
+* pull requeście do gałęzi `main`
+
+CI wykonuje:
+
+* sprawdzenie składni plików Python
+* analizę jakości kodu (flake8)
+* uruchomienie testów (`test_time.py`)
+* weryfikację struktury projektu (np. obecność `plugin.py`, `__init__.py`)
+* sprawdzenie obecności pliku README
+* walidację przykładowego formatu JSON
+
+Środowisko:
+
+* Python 3.10
+* Ubuntu (GitHub runner)
+
+Konfiguracja workflow znajduje się w:
+
+```
+.github/workflows/main.yml
+```
 
 ### Uwagi
 
