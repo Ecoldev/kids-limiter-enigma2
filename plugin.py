@@ -7,8 +7,9 @@ import re
 import json
 import os
 from datetime import datetime
+import time
 
-
+TIMER_INTERVAL = 10000
 LIMIT = 1200
 SAVE_FILE = "/etc/enigma2/kids_time.json"
 
@@ -118,11 +119,8 @@ class KidsLimiter(object):
 
         self.zapTimer = eTimer()
         self.data = load_time()
-        self.today = datetime.now().strftime("%Y-%m-%d")
 
-        if self.data["date"] != self.today:
-            self.data = {"date": self.today, "time_seconds": 0}
-            save_time(self.data)
+        self.lastCheck = int(time.time())
 
         if self.data.get("time_seconds", 0) >= LIMIT:
             self.limitReached = True
@@ -137,7 +135,7 @@ class KidsLimiter(object):
             }
         )
 
-        self.timer.start(2000, True)
+        self.timer.start(TIMER_INTERVAL, True)
 
 
     def scheduleSwitch(self):
@@ -219,15 +217,25 @@ class KidsLimiter(object):
     def checkTime(self):
         import time
 
+        now = int(time.time())
+        delta = now - self.lastCheck
+        self.lastCheck = now
+
+        
+        if delta < 0 or delta > 2 * (TIMER_INTERVAL // 1000):
+            delta = TIMER_INTERVAL // 1000
+
         today = datetime.now().strftime("%Y-%m-%d")
 
         refObj = self.session.nav.getCurrentlyPlayingServiceReference()
         if not refObj:
+            self.timer.start(TIMER_INTERVAL, True)
             return
 
         ref = refObj.toString()
 
         if ref == CHANNEL_TO_SWITCH:
+            self.timer.start(TIMER_INTERVAL, True)
             return
 
         if self.data.get("time_seconds", 0) >= LIMIT:
@@ -235,25 +243,34 @@ class KidsLimiter(object):
 
         service = self.session.nav.getCurrentService()
         if not service:
+            self.timer.start(TIMER_INTERVAL, True)
             return
 
         info = service.info()
         if not info:
+            self.timer.start(TIMER_INTERVAL, True)
+
             return
 
         name = info.getName()
         if not name:
+            self.timer.start(TIMER_INTERVAL, True)
             return
 
         isKid = is_kid_channel(name, ref)
 
         if self.data.get("date") != today:
-            self.data = {"date": today, "time_seconds": 0}
+            print("[KidsLimiter] DAILY RESET")
+
+            self.data["date"] = today
+            self.data["time_seconds"] = 0
+
             self.limitReached = False
             self.popupShown = False
             self.blocking = False
             self.lastBlockedRef = None
             self.lastSave = 0
+
             save_time(self.data)
 
         if self.limitReached:
@@ -263,7 +280,7 @@ class KidsLimiter(object):
                     self.blocking = True
                     self.scheduleSwitch()
             else:
-
+                self.timer.start(TIMER_INTERVAL, True)
                 self.blocking = False
             return
 
@@ -271,11 +288,12 @@ class KidsLimiter(object):
             self.popupShown = False
             self.blocking = False
             self.lastBlockedRef = None
+            self.timer.start(TIMER_INTERVAL, True)
             return
 
-        self.data["time_seconds"] += 2
+        self.data["time_seconds"] += delta
 
-        if time.time() - self.lastSave > 10:
+        if time.time() - self.lastSave > 30:
             save_time(self.data)
             self.lastSave = time.time()
 
@@ -293,6 +311,7 @@ class KidsLimiter(object):
                 "Limit dzienny dla dzieci osiągnięty!",
                 MessageBox.TYPE_INFO
             )
+        self.timer.start(TIMER_INTERVAL, True)
 
 
 def autostart(session, **kwargs):
