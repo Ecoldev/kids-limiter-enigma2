@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
 from Components.ServiceEventTracker import ServiceEventTracker
@@ -8,11 +9,10 @@ import os
 from datetime import datetime
 
 
-LIMIT = 1200   # 20 min
+LIMIT = 1200
 SAVE_FILE = "/etc/enigma2/kids_time.json"
 
-#TVP1 HD
-TVP1_REF = "1:0:1:3ABD:514:13E:820000:0:0:0:"
+CHANNEL_TO_SWITCH = "1:0:1:3ABD:514:13E:820000:0:0:0:"
 
 
 KIDS_REFS = [
@@ -68,8 +68,6 @@ def is_kid_channel(name, ref):
     return False
 
 
-
-
 def load_time():
     if not os.path.exists(SAVE_FILE):
         return {"date": "", "time_seconds": 0}
@@ -78,11 +76,9 @@ def load_time():
         with open(SAVE_FILE, "r") as f:
             data = json.load(f)
 
-        
         if "time" in data and "time_seconds" not in data:
             data["time_seconds"] = data.pop("time")
 
-        
         if "time_seconds" not in data or not isinstance(data["time_seconds"], int):
             data["time_seconds"] = 0
 
@@ -95,6 +91,7 @@ def load_time():
         print("[KidsLimiter] load error:", e)
         return {"date": "", "time_seconds": 0}
 
+
 def save_time(data):
     try:
         with open(SAVE_FILE, "w") as f:
@@ -106,17 +103,29 @@ def save_time(data):
 class KidsLimiter(object):
 
     def __init__(self, session):
+        import time
 
+        self.lastSave = 0
+        self.last_block_time = 0
         self.session = session
         self.onClose = []
+        self.blocking = False
+        self.popupShown = False
+        self.limitReached = False
+        self.switchScheduled = False
 
+        self.lastBlockedRef = None   # 🔥 brakowało
+
+        self.zapTimer = eTimer()
         self.data = load_time()
         self.today = datetime.now().strftime("%Y-%m-%d")
 
         if self.data["date"] != self.today:
             self.data = {"date": self.today, "time_seconds": 0}
+            save_time(self.data)
 
-        self.popupShown = False
+        if self.data.get("time_seconds", 0) >= LIMIT:
+            self.limitReached = True
 
         self.timer = eTimer()
         self.timer.callback.append(self.checkTime)
@@ -128,114 +137,169 @@ class KidsLimiter(object):
             }
         )
 
-        print("[KidsLimiter] INIT daily time seconds:", self.data["time_seconds"])
-
         self.timer.start(2000, True)
+
+
+    def scheduleSwitch(self):
+        import time
+
+        if self.switchScheduled:
+            return
+
+        now = time.time()
+
+        if now - self.last_block_time < 3:
+            return
+
+        self.last_block_time = now
+        self.switchScheduled = True
+
+        def delayed():
+            self.switchScheduled = False
+            self.forceSwitchChannel()
+
+        self.zapTimer = eTimer()
+        self.zapTimer.callback.append(delayed)
+        self.zapTimer.start(1000, False)
 
 
     def serviceStarted(self):
-
-        service = self.session.nav.getCurrentService()
-        if not service:
+        refObj = self.session.nav.getCurrentlyPlayingServiceReference()
+        if not refObj:
             return
 
-        info = service.info()
-        if not info:
+        ref = refObj.toString()
+
+        if ref == CHANNEL_TO_SWITCH:
+            self.blocking = False
+            self.switchScheduled = False
+            self.lastBlockedRef = None   # 🔥 reset
             return
 
-        name = info.getName()
-        ref = self.session.nav.getCurrentlyPlayingServiceReference().toString()
 
-        if not name or not ref:
-            return
-
-        print("[KidsLimiter] channel:", name)
-        print("[KidsLimiter] ref:", ref)
-
-        if is_kid_channel(name, ref):
-            print("[KidsLimiter] KIDS CHANNEL DETECTED")
-        else:
-            print("[KidsLimiter] normal channel")
-
-
-    def forceTVP1(self):
-        print("[KidsLimiter] SWITCH TO TVP1:", TVP1_REF)
-
+    def forceSwitchChannel(self):
         try:
-            self.session.nav.stopService()
-        except:
-            pass
+            refObj = self.session.nav.getCurrentlyPlayingServiceReference()
+            if not refObj:
+                return
 
-        self.session.nav.playService(eServiceReference(TVP1_REF))
+            ref = refObj.toString()
+
+            service = self.session.nav.getCurrentService()
+            if not service:
+                return
+
+            info = service.info()
+            if not info:
+                return
+
+            name = info.getName()
+            if not name:
+                return
+
+            #
+            if not is_kid_channel(name, ref):
+                print("[KidsLimiter] Not kid channel anymore - skip")
+                self.blocking = False
+                return
+
+            target = eServiceReference(CHANNEL_TO_SWITCH)
+
+            
+            if ref == CHANNEL_TO_SWITCH:
+                return
+
+            print("[KidsLimiter] SWITCHING TO SAFE CHANNEL")
+            self.session.nav.playService(target)
+
+        except Exception as e:
+            print("[KidsLimiter] SWITCH ERROR:", e)
 
 
     def checkTime(self):
+        import time
 
         today = datetime.now().strftime("%Y-%m-%d")
-        
-        if not self.data.get("date") or self.data["date"] != today:
-            print("[KidsLimiter] NEW DAY RESET")
-            self.data["date"] = today
-            self.data["time_seconds"] = 0
-            save_time(self.data)
+
+        refObj = self.session.nav.getCurrentlyPlayingServiceReference()
+        if not refObj:
+            return
+
+        ref = refObj.toString()
+
+        if ref == CHANNEL_TO_SWITCH:
+            return
+
+        if self.data.get("time_seconds", 0) >= LIMIT:
+            self.limitReached = True
 
         service = self.session.nav.getCurrentService()
-
         if not service:
             return
-        
+
         info = service.info()
         if not info:
             return
 
         name = info.getName()
-        ref = self.session.nav.getCurrentlyPlayingServiceReference().toString()
-
-        if not name or not ref:
+        if not name:
             return
 
-        if self.data["time_seconds"] >= LIMIT:
-            if is_kid_channel(name, ref):
-                print("[KidsLimiter] HARD BLOCK → TVP1")
-                self.forceTVP1()
-                self.timer.start(2000, True)
-                return
+        isKid = is_kid_channel(name, ref)
 
-        if is_kid_channel(name, ref):
-
-            self.data["time_seconds"] += 2
+        if self.data.get("date") != today:
+            self.data = {"date": today, "time_seconds": 0}
+            self.limitReached = False
+            self.popupShown = False
+            self.blocking = False
+            self.lastBlockedRef = None
+            self.lastSave = 0
             save_time(self.data)
 
-            print("[KidsLimiter] daily time seconds:", self.data["time_seconds"])
+        if self.limitReached:
+            if isKid:
+                if not self.blocking:
+                    print("[KidsLimiter] BLOCK KID CHANNEL")
+                    self.blocking = True
+                    self.scheduleSwitch()
+            else:
 
-            if self.data["time_seconds"] >= LIMIT and not self.popupShown:
-                self.popupShown = True
+                self.blocking = False
+            return
 
-                print("[KidsLimiter] LIMIT REACHED → BLOCKING")
-
-                self.session.open(
-                    MessageBox,
-                    "Limit dzienny dla dzieci osiągnięty!",
-                    MessageBox.TYPE_INFO
-                )
-
-                self.forceTVP1()
-
-        else:
+        if not isKid:
             self.popupShown = False
+            self.blocking = False
+            self.lastBlockedRef = None
+            return
 
-        self.timer.start(2000, True)
+        self.data["time_seconds"] += 2
+
+        if time.time() - self.lastSave > 10:
+            save_time(self.data)
+            self.lastSave = time.time()
+
+        limitNow = self.data["time_seconds"] >= LIMIT
+
+        if limitNow and not self.limitReached:
+            self.limitReached = True
+            self.scheduleSwitch()
+            return
+
+        if limitNow and not self.popupShown:
+            self.popupShown = True
+            self.session.open(
+                MessageBox,
+                "Limit dzienny dla dzieci osiągnięty!",
+                MessageBox.TYPE_INFO
+            )
 
 
 def autostart(session, **kwargs):
-
-    print("[KidsLimiter] START")
-
     session.kidsLimiter = KidsLimiter(session)
 
 
 def Plugins(**kwargs):
-
     return [
         PluginDescriptor(
             where=PluginDescriptor.WHERE_SESSIONSTART,

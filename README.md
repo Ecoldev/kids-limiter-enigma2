@@ -2,19 +2,22 @@
 
 # KidsLimiter (Enigma2 Plugin)
 
+**Status:** v0.1 – stable core (MVP)
+
 KidsLimiter to plugin kontroli rodzicielskiej dla Enigma2, który ogranicza dzienny czas oglądania kanałów dziecięcych.
 
 ---
 
 ## Funkcje (v0.1)
 
-* Limit dzienny oglądania (domyślnie: 20 minut)
+* Limit dzienny oglądania (domyślnie: 1200 sekund / 20 minut)
 * Wykrywanie kanałów dziecięcych:
 
   * po Service Reference
   * po nazwie kanału
+* Blokada dotyczy tylko kanałów dziecięcych (inne kanały działają normalnie)
 * Zapisywanie czasu do pliku (`/etc/enigma2/kids_time.json`)
-* Automatyczny reset każdego dnia
+* Automatyczny reset każdego dnia (startup + runtime, obsługa północy)
 * Twarda blokada po osiągnięciu limitu (wymuszone przełączenie kanału)
 * Komunikat po osiągnięciu limitu
 
@@ -31,6 +34,7 @@ KidsLimiter to plugin kontroli rodzicielskiej dla Enigma2, który ogranicza dzie
 
    * pokazuje komunikat
    * wymusza zmianę kanału (np. TVP1)
+4. Kanały inne niż dziecięce nigdy nie są blokowane
 
 ---
 
@@ -57,7 +61,7 @@ Edytuj w kodzie:
 
 ```python
 LIMIT = 1200
-TVP1_REF = "1:0:1:3ABD:514:13E:820000:0:0:0:"
+CHANNEL_TO_SWITCH = "1:0:1:3ABD:514:13E:820000:0:0:0:"
 ```
 
 ---
@@ -65,7 +69,7 @@ TVP1_REF = "1:0:1:3ABD:514:13E:820000:0:0:0:"
 ## Ograniczenia (v0.1)
 
 * Brak PIN-u
-* Liczenie na timerze (niedokładne)
+* Liczenie na timerze (nie jest w 100% dokładne)
 * Częsty zapis do pliku
 * Brak GUI
 
@@ -92,10 +96,11 @@ Testy obejmują:
 * obsługę uszkodzonego lub niepoprawnego JSON
 * obsługę braku pliku z danymi
 * logikę dziennego resetu
+* migrację danych (stary → nowy format)
 
 ### Jak to działa
 
-Testy znajdują się w pliku `test_time.py` i wykorzystują mocki modułów Enigma2, dzięki czemu mogą być uruchamiane w standardowym środowisku Python.
+Testy znajdują się w pliku `test_time.py` i wykorzystują mocki modułów Enigma2.
 
 ### Uruchamianie testów lokalnie
 
@@ -117,16 +122,16 @@ CI wykonuje:
 * sprawdzenie składni plików Python
 * analizę jakości kodu (flake8)
 * uruchomienie testów (`test_time.py`)
-* weryfikację struktury projektu (np. obecność `plugin.py`, `__init__.py`)
-* sprawdzenie obecności pliku README
-* walidację przykładowego formatu JSON
+* weryfikację struktury projektu
+* sprawdzenie obecności README
+* walidację formatu JSON
 
 Środowisko:
 
 * Python 3.10
 * Ubuntu (GitHub runner)
 
-Konfiguracja workflow znajduje się w:
+Konfiguracja workflow:
 
 ```
 .github/workflows/main.yml
@@ -134,12 +139,14 @@ Konfiguracja workflow znajduje się w:
 
 ### Uwagi
 
-* Testy nie obejmują działania w środowisku Enigma2 (np. timerów, zmiany kanałów)
-* Zachowanie pluginu należy dodatkowo zweryfikować bezpośrednio na urządzeniu
+* Testy nie obejmują działania w środowisku Enigma2
+* Zachowanie pluginu należy przetestować na urządzeniu
 
 ---
 
 # KidsLimiter (Enigma2 Plugin) - English version
+
+**Status:** v0.1 – stable core (MVP)
 
 KidsLimiter is a parental control plugin for Enigma2 that limits daily viewing time for children's TV channels.
 
@@ -147,13 +154,14 @@ KidsLimiter is a parental control plugin for Enigma2 that limits daily viewing t
 
 ## Features (v0.1)
 
-* Daily viewing time limit (default: 20 minutes)
+* Daily viewing time limit (default: 1200 seconds / 20 minutes)
 * Detection of children's channels:
 
   * by Service Reference
   * by channel name
+* Blocking applies only to children's channels (other channels remain accessible)
 * Persistent storage (`/etc/enigma2/kids_time.json`)
-* Automatic daily reset
+* Automatic daily reset (startup + runtime, handles midnight rollover)
 * Hard block after reaching the limit (forced channel switch)
 * Popup notification when limit is reached
 
@@ -170,6 +178,7 @@ KidsLimiter is a parental control plugin for Enigma2 that limits daily viewing t
 
    * shows popup
    * forces switch to predefined channel (e.g. TVP1)
+4. Non-kids channels are never blocked
 
 ---
 
@@ -192,11 +201,9 @@ enigma2
 
 ## Configuration
 
-Edit in code:
-
 ```python
 LIMIT = 1200
-TVP1_REF = "1:0:1:3ABD:514:13E:820000:0:0:0:"
+CHANNEL_TO_SWITCH = "1:0:1:3ABD:514:13E:820000:0:0:0:"
 ```
 
 ---
@@ -224,46 +231,39 @@ The project includes a lightweight test setup to validate core logic without req
 
 ### Scope
 
-Tests focus on:
+Tests cover:
 
 * time format normalization (`time` → `time_seconds`)
-* backward compatibility with legacy JSON format
-* handling corrupted or invalid JSON data
-* handling missing data file
+* backward compatibility with legacy JSON
+* corrupted data handling
+* missing file handling
 * daily reset logic
+* migration from legacy format
 
-### How it works
-
-Tests are implemented in `test_time.py` and use mocked Enigma2 modules.
-
-### Running tests locally
+### Running tests
 
 ```bash
 python3 test_time.py
 ```
 
-### CI Integration
+### CI
 
-Tests are automatically executed via GitHub Actions on each push and pull request.
+Tests are executed automatically via GitHub Actions on push and pull requests.
 
 ### Notes
 
-* Tests do not cover Enigma2 runtime behavior
-* Runtime behavior must be validated on the device
+* Runtime behavior must be validated on actual device
+* Enigma2 environment is mocked in tests
 
 ---
 
 ## Community / Społeczność
 
 Projekt stosuje standardowe praktyki open-source.
-Project follows standard open-source practices.
 
-* Zasady współpracy / Contribution guidelines: `CONTRIBUTING.md`
-* Kodeks postępowania / Code of Conduct: `CODE_OF_CONDUCT.md`
-* Polityka bezpieczeństwa / Security policy: `SECURITY.md`
-
-Przed wniesieniem zmian zapoznaj się z tymi dokumentami.
-Please review these documents before contributing.
+* CONTRIBUTING.md
+* CODE_OF_CONDUCT.md
+* SECURITY.md
 
 ---
 
