@@ -72,14 +72,28 @@ def is_kid_channel(name, ref):
 
 def load_time():
     if not os.path.exists(SAVE_FILE):
-        return {"date": "", "time": 0}
+        return {"date": "", "time_seconds": 0}
 
     try:
         with open(SAVE_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {"date": "", "time": 0}
+            data = json.load(f)
 
+        
+        if "time" in data and "time_seconds" not in data:
+            data["time_seconds"] = data.pop("time")
+
+        
+        if "time_seconds" not in data or not isinstance(data["time_seconds"], int):
+            data["time_seconds"] = 0
+
+        if "date" not in data:
+            data["date"] = ""
+
+        return data
+
+    except Exception as e:
+        print("[KidsLimiter] load error:", e)
+        return {"date": "", "time_seconds": 0}
 
 def save_time(data):
     try:
@@ -100,7 +114,7 @@ class KidsLimiter(object):
         self.today = datetime.now().strftime("%Y-%m-%d")
 
         if self.data["date"] != self.today:
-            self.data = {"date": self.today, "time": 0}
+            self.data = {"date": self.today, "time_seconds": 0}
 
         self.popupShown = False
 
@@ -114,7 +128,7 @@ class KidsLimiter(object):
             }
         )
 
-        print("[KidsLimiter] INIT daily time:", self.data["time"])
+        print("[KidsLimiter] INIT daily time seconds:", self.data["time_seconds"])
 
         self.timer.start(2000, True)
 
@@ -157,10 +171,19 @@ class KidsLimiter(object):
 
     def checkTime(self):
 
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        if not self.data.get("date") or self.data["date"] != today:
+            print("[KidsLimiter] NEW DAY RESET")
+            self.data["date"] = today
+            self.data["time_seconds"] = 0
+            save_time(self.data)
+
         service = self.session.nav.getCurrentService()
+
         if not service:
             return
-
+        
         info = service.info()
         if not info:
             return
@@ -171,8 +194,7 @@ class KidsLimiter(object):
         if not name or not ref:
             return
 
-        
-        if self.data["time"] >= LIMIT:
+        if self.data["time_seconds"] >= LIMIT:
             if is_kid_channel(name, ref):
                 print("[KidsLimiter] HARD BLOCK → TVP1")
                 self.forceTVP1()
@@ -181,12 +203,12 @@ class KidsLimiter(object):
 
         if is_kid_channel(name, ref):
 
-            self.data["time"] += 2
+            self.data["time_seconds"] += 2
             save_time(self.data)
 
-            print("[KidsLimiter] daily time:", self.data["time"])
+            print("[KidsLimiter] daily time seconds:", self.data["time_seconds"])
 
-            if self.data["time"] >= LIMIT and not self.popupShown:
+            if self.data["time_seconds"] >= LIMIT and not self.popupShown:
                 self.popupShown = True
 
                 print("[KidsLimiter] LIMIT REACHED → BLOCKING")
