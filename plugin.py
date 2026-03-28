@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from Plugins.Plugin import PluginDescriptor
 from Screens.MessageBox import MessageBox
 from Components.ServiceEventTracker import ServiceEventTracker
@@ -13,7 +11,7 @@ from datetime import datetime
 LIMIT = 1200   # 20 min
 SAVE_FILE = "/etc/enigma2/kids_time.json"
 
-# 🔥 TWÓJ TVP1 HD
+#TVP1 HD
 TVP1_REF = "1:0:1:3ABD:514:13E:820000:0:0:0:"
 
 
@@ -70,7 +68,7 @@ def is_kid_channel(name, ref):
     return False
 
 
-# 🔥 PERSISTENCE
+
 
 def load_time():
     if not os.path.exists(SAVE_FILE):
@@ -118,7 +116,7 @@ class KidsLimiter(object):
 
         print("[KidsLimiter] INIT daily time:", self.data["time"])
 
-        self.timer.start(5000, True)
+        self.timer.start(2000, True)
 
 
     def serviceStarted(self):
@@ -146,6 +144,17 @@ class KidsLimiter(object):
             print("[KidsLimiter] normal channel")
 
 
+    def forceTVP1(self):
+        print("[KidsLimiter] SWITCH TO TVP1:", TVP1_REF)
+
+        try:
+            self.session.nav.stopService()
+        except:
+            pass
+
+        self.session.nav.playService(eServiceReference(TVP1_REF))
+
+
     def checkTime(self):
 
         service = self.session.nav.getCurrentService()
@@ -162,17 +171,17 @@ class KidsLimiter(object):
         if not name or not ref:
             return
 
-        # 🔥 BLOKADA PO LIMICIE (NAJWAŻNIEJSZE)
+        
         if self.data["time"] >= LIMIT:
             if is_kid_channel(name, ref):
-                print("[KidsLimiter] BLOCK → force TVP1")
-                self.session.nav.playService(eServiceReference(TVP1_REF))
-                self.timer.start(5000, True)
+                print("[KidsLimiter] HARD BLOCK → TVP1")
+                self.forceTVP1()
+                self.timer.start(2000, True)
                 return
 
         if is_kid_channel(name, ref):
 
-            self.data["time"] += 5
+            self.data["time"] += 2
             save_time(self.data)
 
             print("[KidsLimiter] daily time:", self.data["time"])
@@ -188,14 +197,12 @@ class KidsLimiter(object):
                     MessageBox.TYPE_INFO
                 )
 
-                # 🔥 PRZEŁĄCZENIE NA TVP1
-                self.session.nav.playService(eServiceReference(TVP1_REF))
+                self.forceTVP1()
 
         else:
             self.popupShown = False
 
-
-        self.timer.start(5000, True)
+        self.timer.start(2000, True)
 
 
 def autostart(session, **kwargs):
